@@ -1,0 +1,907 @@
+Criação de Processos
+
+O Unix/Linux identifica os processos por um valor inteiro único chamado ID do processo.
+Cada processo tem também um ID do processo pai, que é inicialmente o ID do processo que o criou.
+Se este processo pai termina, o processo é adotado por um processo do sistema de modo que o ID do processo pai sempre identifica um processo válido.
+As funções getpid e getppid retornam o ID do processo e o ID do processo pai, respectivamente.
+
+#include <stdio.h>
+#include <unistd.h>
+
+int main (void) {
+  printf("I am process %ld\n", (long)getpid());
+  printf("My parent is %ld\n", (long)getppid());
+  return 0;
+}
+
+ATENCAO: cast para long é importante aqui!
+Para armazenar um PID, usar o tipo PID_T. Evita problema com multiplas plataformas,
+
+ESTADOS DE PROCESSOS
+Estado	Significado
+novo	Sendo criado
+executando	Instruções estão sendo processadas
+bloqueado	Esperando por um evento tal como E/S
+pronto	Esperando para ser colocado em um processador
+feito	Terminado
+
+Podemos examinar os processos em execução e visualizar seus estados utilizando o comando ps -a
+
+Executando ps -la temos uma saı́da mais completa com várias informações adicionais sobre os processos.
+
+$ps -la
+F S   UID     PID    PPID  C PRI  NI ADDR SZ WCHAN  TTY          TIME CMD
+0 S  1000   54212   49473  0  80   0 -  4342 do_pol pts/2    00:00:00 ssh
+4 R  1000   56347    2795  0  80   0 -  3169 -      pts/1    00:00:00 ps
+
+Campos reportados pelo comando ps
+Campos reportados para as várias opções do comando ps na Extensão POSIX:XSI
+cabeçalho	opção	significado
+F	-l	flags (octal e aditivo) associados com o processo
+S	-l	estado do processo
+UID	-f,-l	ID de usuário do proprietário do processo
+PID	(todos)	ID do processo
+PPID	-f,-l	ID do processo pai
+C	-f,-l	utilização de processador usada para escalonamento
+PRI	-l	prioridade do processo
+NI	-l	valor nice
+ADDR	-l	endereço de memória do processo
+SZ	-l	tamanho em blocos da imagem do processo
+WCHAN	-l	evento no qual o processo está esperando
+TTY	(todos)	terminal que está controlando
+TIME	(todos)	tempo de execução cumulativo
+CMD	(todos)	nome do comando (argumentos com a opção -f )
+
+
+Criação de Processos
+Um processo pode ser criado chamando-se fork
+
+O processo chamador se torna o pai e o processo criado é chamado de filho
+
+#include <stdio.h>
+#include <unistd.h>
+
+int main(void) {
+   int x;
+
+   x = 0;
+   fork();
+   x = 1;
+   printf("I am process %ld and my x is %d\n", (long)getpid(), x);
+   return 0;
+}
+
+Desafio
+
+Quantos prints aparecerão na tela, depois de executar o código acima?
+Resposta: 2, pois demos fork antes.
+Ex: I am process 8883 and my x is 1
+    I am process 8884 and my x is 1
+
+OBS
+
+fork retorna 2 valores. Para o pai, retorna o PID do filho. Para o filho, retorna 0.
+Assim, os processos envolvidos sabem "quem eles são". É o único jeito do pai saber qual o PID do filho.
+
+
+fork – pai e filho
+Como se comporta o processo filho criado?
+É possível distinguir a execução do pai e do filho?
+
+EXEMPLO DE COMO FAZER PAI E FILHO TEREM COMPORTAMENTOS DIFERENTES
+
+#include <stdio.h>
+#include <unistd.h>
+#include <sys/types.h>
+
+int main(void) {
+   pid_t childpid;
+
+   childpid = fork();
+   if (childpid == -1) {
+      perror("Failed to fork");
+      return 1;
+   }
+
+   if (childpid == 0)      /* child code */
+      printf("I am child %ld\n", (long)getpid());
+   else                    /* parent code */
+      printf("I am parent %ld\n", (long)getpid());
+   return 0;
+}
+
+Importante!
+
+A chamada de função fork() retorna 2 valores:
+
+o PID do processo filho criado no processo pai;
+0 no processo filho.
+
+
+Obtendo o Process ID
+O que acontece quando o seguinte programa é executado?
+
+Que valor será printado para a variável mypid?
+
+#include <stdio.h>
+#include <unistd.h>
+#include <sys/types.h>
+
+int main(void) {
+   pid_t childpid;
+   pid_t mypid:
+
+   mypid = getpid();
+   childpid = fork();
+   if (childpid == -1) {
+      perror("Failed to fork");
+      return 1;
+   }
+   
+   if (childpid == 0)          /* child code */
+     printf("I am child %ld, ID = %ld\n", (long)getpid(), (long)mypid);
+   else                       /* child code */
+     printf("I am parent %ld, ID = %ld\n", (long)getpid(), (long)mypid);
+   return 0;
+}
+
+
+
+Criando uma cadeia de processos
+Abaixo está o código de um programa que cria uma cadeia de n processos, onde n é um argumento de linha de comando.
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+
+int main (int argc, char *argv[]) {
+   pid_t childpid = 0;
+   int i, n;
+   if (argc != 2){   /* check for valid number of command-line arguments */
+      fprintf(stderr, "Usage: %s processes\n", argv[0]);
+      return 1;
+   }
+   n = atoi(argv[1]);
+   for (i = 1; i < n; i++)
+      if (childpid = fork())
+         break;
+
+   fprintf(stderr, "i:%d process ID:%ld parent ID:%ld child ID:%ld\n",
+           i, (long)getpid(), (long)getppid(), (long)childpid);
+   return 0;
+}
+
+NO CASO ACIMA,       if (childpid = fork()) fork só retorna 0 para o filho.
+Logo, o filho entra no segundo loop, mas o pai entra no break.
+
+logo, o pai cria filho1, filho1 cria filho2, filho2 cria filho3
+
+
+
+
+Exercícios
+
+1. Rode o programa anterior para valores grandes de n (no máximo 40). As mensagens sempre estarão ordenadas pelo valor de i?
+SIM.
+Evidência:
+@agleizer ➜ /workspaces/ComputacaoParalela/lab01 (main) $ ./ex4 40
+i:1 process ID:18364 parent ID:3835 child ID:18365
+i:2 process ID:18365 parent ID:18364 child ID:18366
+i:3 process ID:18366 parent ID:1 child ID:18367
+i:4 process ID:18367 parent ID:1 child ID:18368
+i:5 process ID:18368 parent ID:1 child ID:18369
+i:6 process ID:18369 parent ID:1 child ID:18370
+i:7 process ID:18370 parent ID:1 child ID:18372
+i:8 process ID:18372 parent ID:1 child ID:18373
+i:9 process ID:18373 parent ID:1 child ID:18374
+i:10 process ID:18374 parent ID:1 child ID:18375
+i:11 process ID:18375 parent ID:1 child ID:18376
+i:12 process ID:18376 parent ID:1 child ID:18377
+i:13 process ID:18377 parent ID:1 child ID:18378
+i:14 process ID:18378 parent ID:1 child ID:18379
+i:15 process ID:18379 parent ID:1 child ID:18380
+i:16 process ID:18380 parent ID:1 child ID:18381
+i:17 process ID:18381 parent ID:1 child ID:18383
+i:18 process ID:18383 parent ID:1 child ID:18384
+i:19 process ID:18384 parent ID:1 child ID:18385
+i:20 process ID:18385 parent ID:1 child ID:18386
+i:21 process ID:18386 parent ID:1 child ID:18387
+i:22 process ID:18387 parent ID:1 child ID:18388
+i:23 process ID:18388 parent ID:1 child ID:18390
+i:24 process ID:18390 parent ID:1 child ID:18391
+i:25 process ID:18391 parent ID:1 child ID:18392
+i:26 process ID:18392 parent ID:1 child ID:18393
+i:27 process ID:18393 parent ID:1 child ID:18394
+i:28 process ID:18394 parent ID:1 child ID:18395
+i:29 process ID:18395 parent ID:1 child ID:18396
+i:30 process ID:18396 parent ID:1 child ID:18397
+i:31 process ID:18397 parent ID:1 child ID:18398
+i:32 process ID:18398 parent ID:1 child ID:18399
+i:33 process ID:18399 parent ID:1 child ID:18401
+i:34 process ID:18401 parent ID:1 child ID:18403
+i:35 process ID:18403 parent ID:1 child ID:18404
+i:36 process ID:18404 parent ID:1 child ID:18405
+i:37 process ID:18405 parent ID:1 child ID:18406
+i:38 process ID:18406 parent ID:1 child ID:18407
+i:39 process ID:18407 parent ID:1 child ID:18408
+i:40 process ID:18408 parent ID:1 child ID:0
+
+2. Usando um n grande (15<n<=50), o que acontece se o programa anterior escrevesse as mensagens para sys.stdout, usando printf, ao invés de para sys.stderr?
+Em devido momento, alguns prints são feitos fora de ordem.
+
+@agleizer ➜ /workspaces/ComputacaoParalela/lab01 (main) $ ./exercicio2 50
+i:1 process ID:20186 parent ID:3835 child ID:20187
+i:2 process ID:20187 parent ID:20186 child ID:20188
+i:3 process ID:20188 parent ID:1 child ID:20189
+i:4 process ID:20189 parent ID:1 child ID:20190
+i:5 process ID:20190 parent ID:1 child ID:20192
+i:6 process ID:20192 parent ID:1 child ID:20193
+i:7 process ID:20193 parent ID:1 child ID:20194
+i:8 process ID:20194 parent ID:1 child ID:20195
+i:9 process ID:20195 parent ID:1 child ID:20196
+i:10 process ID:20196 parent ID:1 child ID:20197
+i:11 process ID:20197 parent ID:1 child ID:20198
+i:12 process ID:20198 parent ID:1 child ID:20199
+i:13 process ID:20199 parent ID:1 child ID:20201
+i:14 process ID:20201 parent ID:1 child ID:20202
+i:15 process ID:20202 parent ID:1 child ID:20203
+i:16 process ID:20203 parent ID:1 child ID:20205
+i:17 process ID:20205 parent ID:1 child ID:20206
+i:18 process ID:20206 parent ID:1 child ID:20208
+i:19 process ID:20208 parent ID:1 child ID:20209
+i:20 process ID:20209 parent ID:1 child ID:20210
+i:21 process ID:20210 parent ID:1 child ID:20212
+i:22 process ID:20212 parent ID:1 child ID:20213
+i:23 process ID:20213 parent ID:1 child ID:20214
+i:24 process ID:20214 parent ID:1 child ID:20215
+i:25 process ID:20215 parent ID:1 child ID:20216
+i:26 process ID:20216 parent ID:1 child ID:20217
+i:27 process ID:20217 parent ID:1 child ID:20218
+i:28 process ID:20218 parent ID:1 child ID:20219
+i:29 process ID:20219 parent ID:1 child ID:20221
+i:30 process ID:20221 parent ID:1 child ID:20222
+i:31 process ID:20222 parent ID:1 child ID:20224
+i:32 process ID:20224 parent ID:1 child ID:20225
+i:33 process ID:20225 parent ID:1 child ID:20226
+i:34 process ID:20226 parent ID:1 child ID:20227
+i:35 process ID:20227 parent ID:1 child ID:20228
+i:36 process ID:20228 parent ID:1 child ID:20229
+i:37 process ID:20229 parent ID:1 child ID:20230
+i:38 process ID:20230 parent ID:1 child ID:20231
+i:39 process ID:20231 parent ID:1 child ID:20233
+i:40 process ID:20233 parent ID:1 child ID:20235
+i:41 process ID:20235 parent ID:1 child ID:20236
+i:42 process ID:20236 parent ID:1 child ID:20237
+i:43 process ID:20237 parent ID:1 child ID:20238
+i:44 process ID:20238 parent ID:1 child ID:20241
+i:45 process ID:20241 parent ID:1 child ID:20242
+i:46 process ID:20242 parent ID:1 child ID:20243
+i:47 process ID:20243 parent ID:1 child ID:20244
+i:48 process ID:20244 parent ID:1 child ID:20245
+@agleizer ➜ /workspaces/ComputacaoParalela/lab01 (main) $ i:50 process ID:20246 parent ID:20245 child ID:0
+i:49 process ID:20245 parent ID:1 child ID:20246
+
+3. Altere a forma da cadeia de processos para ser como a Opção 2
+Fiz um ajuste (break quando != 0), mas as infos de pai e filho estão erradas. Ajustar o printf!
+
+
+
+Monitoramento de Processos Filhos
+
+Monitorando Processos Filhos
+Como vimos, sempre que criamos um processo filho a partir de um programa usando fork, o seguinte acontece:
+
+O processo atual torna-se o processo pai.
+O novo processo torna-se o processo filho.
+O que acontece se o processo pai concluir sua tarefa antes do processo filho e depois encerrar ou sair? Agora, quem seria o pai do processo filho?
+
+// em geral o SO espera que o filhos "morram" antes do pai. Se o pai terminar antes, o filho vira "zumbi". Para evitar isso (pois ppid não pode retornar erro), Linux usualmente faz q=com que o processo init adote o filho.
+
+O pai do processo filho é o processo init, que é o primeiro processo a iniciar todas as tarefas.
+
+Para monitorar o estado de execução do processo filho, verificar se o processo filho está em execução, parado ou para verificar o status de execução, etc., são utilizadas as chamadas de sistema wait() e suas variantes.
+
+OU SEJA, wait() é usado para permitir que o pai espere o filho terminar. Em geral, o pai estará esperando algum resultado calculado pelo filho.
+
+
+A chamada wait()
+Primeiro Exemplo
+Vamos considerar um programa de exemplo, onde o processo pai não espera pelo processo filho, o que resulta no processo init se tornando o novo pai do processo filho.
+
+Nome do arquivo: parentprocess_nowait.c
+
+#include <stdio.h>
+
+int main() {
+  int pid;
+  pid = fork();
+
+  // Processo filho
+  if (pid == 0) {
+    system("ps -ef");
+    sleep(10);
+    system("ps -ef");
+  } else {
+    sleep(3);
+  }
+  return 0;
+}
+
+
+
+  Variantes de wait()
+Seguem as variantes das chamadas de sistema para monitorar o(s) processo(s) filho(s):
+
+wait()
+waitpid()
+waitid()
+A chamada de sistema wait() aguarda a terminação de um dos processos filhos e retorna seu status de terminação em um buffer, conforme explicado a seguir.
+
+#include <sys/types.h>
+#include <sys/wait.h>
+
+pid_t wait(int *status);
+
+Essa chamada retorna o ID do processo do filho que foi encerrado em caso de sucesso e -1 em caso de falha.
+
+A chamada de sistema wait() suspende a execução do processo atual e aguarda indefinidamente até que um de seus filhos seja encerrado.
+
+O status de terminação do filho fica disponível em status.
+
+OU SEJA, wait() espera um filho terminar. Logo, se temos 5 filhos, precisaremos dar 5 wait().
+
+Segundo Exemplo
+Vamos modificar o programa anterior para que o processo pai agora aguarde o processo filho.
+
+Nome do arquivo: parentprocess_waits.c
+
+#include <stdio.h>
+
+int main() {
+  int pid;
+  int status;
+  pid = fork();
+
+  // Processo filho
+  if (pid == 0) {
+    system("ps -ef");
+    sleep(10);
+    system("ps -ef");
+    return 3;  // Status de saída é 3 do processo filho
+  } else {
+    sleep(3);
+    wait(&status);
+    printf("No processo pai: status de saída do filho é decimal %d, hexa %0x\n", status, status);
+  }
+  return 0;
+}
+
+
+
+Código de retorno de wait()
+Observação:
+
+Embora o filho retorne o status de saída 3, o processo pai o vê como 768.
+O status é armazenado no byte de ordem superior, portanto, é armazenado em formato hexadecimal como 0X0300, que é 768 em decimal.
+A terminação normal é a seguinte:
+
+Byte de Ordem Superior (Bits 8 a 15)	Byte de Ordem Inferior (Bits 0 a 7)
+Status de Saída (0 a 255)	0
+A chamada de sistema wait() possui a limitação de só poder esperar pela saída do próximo filho.
+
+Se precisarmos esperar por um filho específico, não é possível usando wait(), porém, é possível usando a chamada de sistema waitpid().
+
+
+
+A Chamada waitpid()
+A chamada de sistema waitpid() aguarda a terminação de filhos especificados e retorna seu status de terminação no buffer, conforme explicado abaixo.
+
+#include <sys/types.h>
+#include <sys/wait.h>
+
+pid_t waitpid(pid_t pid, int *status, int options);
+
+A chamada acima retorna o ID do processo do filho que foi encerrado em caso de sucesso e -1 em caso de falha.
+
+A chamada de sistema waitpid() suspende a execução do processo atual e aguarda indefinidamente até que o filho especificado (conforme o valor de pid) termine.
+
+O status de terminação do filho fica disponível em status.
+
+O valor de pid pode ser qualquer um dos seguintes:
+
+< -1: Aguardar por qualquer processo filho cujo ID de grupo de processo seja igual ao valor absoluto de pid.
+-1: Aguardar por qualquer processo filho, equivalente à chamada de sistema wait().
+0: Aguardar por qualquer processo filho cujo ID de grupo de processo seja igual ao do processo de chamada.
+>0: Aguardar por qualquer processo filho cujo ID de processo seja igual ao valor de pid.
+Por padrão, a chamada de sistema waitpid() espera apenas por filhos terminados, mas esse comportamento padrão pode ser modificado usando o argumento options.
+
+
+
+Terceiro Exemplo
+Agora, vamos considerar um programa como exemplo, esperando por um processo específico com seu ID de processo.
+
+Nome do arquivo: waitpid_test.c
+
+#include <stdio.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+
+int main() {
+  int pid;
+  int pids[3];
+  int status;
+  int num_processos = 0;
+  int total_processos = 3;
+
+  while (num_processos < total_processos) {
+    pid = fork();
+
+    // Processo filho
+    if (pid == 0) {
+      printf("No processo filho: ID do processo é %d\n", getpid());
+      sleep(5);
+      return 4;
+    } else {
+      pids[num_processos] = pid;
+      num_processos++;
+      printf("No processo pai: processo número %d criado\n", pid);
+    }
+  }
+
+  // Aguardando o 3º processo filho
+  waitpid(pids[total_processos - 1], &status, 0);
+  if (WIFEXITED(status) != 0) {
+    printf("Processo %d encerrado normalmente\n", pids[total_processos - 1]);  
+    printf("Status de saída do filho é %d\n", WEXITSTATUS(status));
+  } else {
+    printf("Processo %d não encerrado normalmente\n", pids[total_processos - 1]);
+  }
+
+  return 0;
+}
+
+Resultado do Terceiro Exemplo
+Após a compilação e execução, a saída é a seguinte:
+
+No processo filho: ID do processo é 32528
+No processo pai: processo número 32528 criado
+No processo filho: ID do processo é 32529
+No processo pai: processo número 32528 criado
+No processo pai: processo número 32529 criado
+No processo filho: ID do processo é 32530
+No processo pai: processo número 32528 criado
+No processo pai: processo número 32529 criado
+No processo pai: processo número 32530 criado
+Processo 32530 encerrado normalmente
+Status de saída do filho é 4
+A chamada waitid()
+Agora, vamos analisar a chamada de sistema waitid(). Esta chamada de sistema aguarda a mudança de estado do processo filho.
+
+#include <sys/wait.h>
+
+int waitid(idtype_t idtype, id_t id, siginfo_t *infop, int options);
+
+A chamada de sistema acima aguarda a mudança de estado do processo filho e suspende o processo atual/chamado até que qualquer um de seus processos filhos mude seu estado.
+O argumento infop serve para registrar o estado atual do filho.
+Esta chamada retorna imediatamente, se o processo já mudou de estado.
+
+
+
+
+
+Resultado do Terceiro Exemplo
+Após a compilação e execução, a saída é a seguinte:
+
+No processo filho: ID do processo é 32528
+No processo pai: processo número 32528 criado
+No processo filho: ID do processo é 32529
+No processo pai: processo número 32528 criado
+No processo pai: processo número 32529 criado
+No processo filho: ID do processo é 32530
+No processo pai: processo número 32528 criado
+No processo pai: processo número 32529 criado
+No processo pai: processo número 32530 criado
+Processo 32530 encerrado normalmente
+Status de saída do filho é 4
+
+
+
+A chamada waitid()
+Agora, vamos analisar a chamada de sistema waitid(). Esta chamada de sistema aguarda a mudança de estado do processo filho.
+
+#include <sys/wait.h>
+
+int waitid(idtype_t idtype, id_t id, siginfo_t *infop, int options);
+
+A chamada de sistema acima aguarda a mudança de estado do processo filho e suspende o processo atual/chamado até que qualquer um de seus processos filhos mude seu estado.
+O argumento infop serve para registrar o estado atual do filho.
+Esta chamada retorna imediatamente, se o processo já mudou de estado.
+
+
+
+A Chamada waitid() (cont.)
+O valor de idtype pode ser qualquer um dos seguintes:
+
+P_PID: Aguarda qualquer processo filho cujo ID do processo seja igual ao de id.
+P_PGID: Aguarda qualquer processo filho cujo ID do grupo de processos seja igual ao de id.
+P_ALL: Aguarda qualquer processo filho e id é ignorado.
+O argumento options é usado para especificar quais mudanças de estado e pode ser formado com a operação OU bit a bit com os seguintes flags:
+
+WCONTINUED: Retorna o status de qualquer filho que foi parado e foi continuado.
+WEXITED: Aguarda o processo finalizar.
+WNOHANG: Retorna imediatamente.
+WSTOPPED: Aguarda o processo de qualquer filho que tenha parado ao receber o sinal e retorna o status.
+Esta chamada retorna 0, se retornar devido a uma mudança de estado de um de seus filhos e WNOHANG for usado.
+
+Retorna -1, em caso de erro e define o número de erro apropriado.
+
+
+
+
+Quarto Exemplo
+Nome do arquivo: waitid_test.c
+
+#include <stdio.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+
+int main() {
+  int pid;
+  int pids[3];
+  int status;
+  int num_processos = 0;
+  int total_processos = 3;
+  siginfo_t siginfo;
+
+  while (num_processos < total_processos) {
+    pid = fork();
+
+    // Processo filho
+    if (pid == 0) {
+      printf("No processo filho: ID do processo é %d\n", getpid());
+      sleep(5);
+      return 4;
+    } else {
+      pids[num_processos] = pid;
+      num_processos++;
+      printf("No processo pai: processo número %d criado\n", pid);
+    }
+  }
+// Esperando pelo 3o processo filho
+   status = waitid(P_PID, pids[total_processos - 1], &siginfo, WEXITED);
+   if (status == -1) {
+      perror("Erro em waitid");
+      return 1;
+   }
+   printf("Informações recebidas do waitid são: ");
+   printf("PID do filho: %d,\n   ID de usuário real do filho: %d\n", siginfo.si_pid, siginfo.si_uid);
+   return 0;  
+  
+}
+
+
+
+
+
+Resultado do Quarto Exemplo
+Após a execução e compilação do programa acima, o seguinte resultado é obtido:
+
+No processo filho: ID do processo é 35390
+No processo pai: processo número 35390 criado
+No processo filho: ID do processo é 35391
+No processo pai: processo número 35390 criado
+No processo pai: processo número 35391 criado
+No processo filho: ID do processo é 35392
+No processo pai: processo número 35390 criado
+No processo pai: processo número 35391 criado
+No processo pai: processo número 35392 criado
+Informações recebidas do waitid são: PID do filho: 35392, 
+  ID de usuário real do filho: 4581875
+
+
+
+
+  Exercícios
+1. mplemente um programa utilizando a chamada de função wait() que espere todos os n processos filhos terminarem, e imprima na tela o PID e o código de retorno de cada um. O processo pai não deve guardar os PIDs dos filhos criados, e deve mostrar, no mínimo, a seguinte saída:
+$ ./exercicio1
+No processo pai: processo filho: 64464, status de saída do filho: 1
+No processo pai: processo filho: 64463, status de saída do filho: 3
+No processo pai: processo filho: 64462, status de saída do filho: 8
+No processo pai: processo filho: 64465, status de saída do filho: 10
+
+O código de retorno dos filhos deve ser o tempo que ficam em sleep; você pode utilizar um tempo aleatório para o sleep da seguinte forma:
+
+#include <stdlib.h>
+#include <time.h>
+...
+srand(time(NULL)+getpid());
+sleep_time = rand() % 10 + 1;
+sleep(sleep_time);
+...
+
+2. Substitua a chamada wait() por waitpid() no programa anterior, mantendo as demais funcionalidades.
+
+
+
+
+Comunicação entre Processos com Pipes
+
+Pipes
+Pipe é uma forma de comunicação entre dois ou mais processos relacionados ou interrelacionados.
+
+Pode ser dentro de um mesmo processo ou uma comunicação entre um processo filho e um pai.
+
+Também pode ser multinível, tal como a comunicação entre o pai, o filho e o neto, etc.
+
+A comunicação é realizada com um processo escrevendo no pipe e o outro lendo do pipe.
+
+Para efetivar a comunicação com pipe utilizamos a chamada de sistemas pipe(), criando dois arquivos, um para escrita no arquivo e outro para leitura do arquivo.
+
+A chamada de sistema pipe() tem a seguinte síntaxe:
+
+#include<unistd.h>
+
+int pipe(int pipedes[2]);
+
+
+
+
+Usando pipes
+A chamada de sistema acima vai criar um pipe para comunicação em uma direção, isto é, cria dois descritores, o primeiro é conectado para se ler do pipe e o outro é conectado para se escrever no pipe:
+
+pipedes[0]: para leitura;
+pipedes[1]: para escrita
+Para as operações de leitura e escrita do pipe, são utilizadas as funções open, read, write e close
+
+A seguir vamos analisar um programa exemplo para escrever e ler duas mensagens utilizando um pipe.
+
+Algoritmo:
+
+Cria um pipe.
+Envia uma mensagem ao pipe.
+Recupera (lê) a mensagem do pipe e escreve-a na saída padrão.
+Envia outra mensagem ao pipe.
+Recupera (lê) a mensagem do pipe e escreve-a na saída padrão.
+Nota: a recuperação das mensagem pode ser feita após se enviar todas as mensagens.
+
+Exemplo 1 - simplepipe.c
+#include<stdio.h>
+#include<unistd.h>
+
+int main() {
+   int pipefds[2];
+   int returnstatus;
+   char writemessages[2][20]={"Hi", "Hello"};
+   char readmessage[20];
+   returnstatus = pipe(pipefds);
+   
+   if (returnstatus == -1) {
+      printf("Unable to create pipe\n");
+      return 1;
+   }
+   
+   printf("Writing to pipe - Message 1 is %s\n", writemessages[0]);
+   write(pipefds[1], writemessages[0], sizeof(writemessages[0]));
+   read(pipefds[0], readmessage, sizeof(readmessage));
+   printf("Reading from pipe – Message 1 is %s\n", readmessage);
+   printf("Writing to pipe - Message 2 is %s\n", writemessages[0]);
+   write(pipefds[1], writemessages[1], sizeof(writemessages[0]));
+   read(pipefds[0], readmessage, sizeof(readmessage));
+   printf("Reading from pipe – Message 2 is %s\n", readmessage);
+   return 0;
+}
+
+Idealmente devemos checar o resultado de cada chamada de sistema. Para simplificar, não estamos realizando esta checagem.
+
+Exemplo 2
+Neste exemplo vamos escrever e ler duas mensagens através do pipe usando os processos pai e filho.
+
+AlgoritmoCódigoCódigo – (cont.)
+Cria o pipe.
+Cria o processo filho.
+Processo pai escreve no pipe.
+Processo filho recupera a mensagem do pipe e escreve na saída padrão.
+Repita os passos 3 e 4 mais uma vez.
+Pai
+Filho
+printa "Hi, Hello!"
+printa "Hi, Hello!"
+Hi, Hello!
+Hi, Hello!
+Pai
+Filho
+Comunicação nos dois sentidos
+Para estabelecermos uma comunicação nos dois sentidos entre o processo pai e o processo filho criamos dois pipes.
+
+As etapas para isso são:
+
+Cria dois pipes. O primeiro será utilizado para o processo pai escrever e o filho ler, vamos chamá-lo de pipe1. O segundo é para o processo filho escrever e o pai ler, vamos chamá-lo de pipe2.
+Cria o processo filho.
+Fecha nos as pontas desnecessárias, já que somente uma é necessária para comunicação.
+Fecha no processo pai a ponta de leitura do pipe1 e a ponta de escrita do pipe2.
+Fecha no processo filho a ponta de escrita do pipe1 e a ponta de leitura do pipe2.
+Realiza a comunicação, como pretendido.
+Pipe 1
+
+Escrita
+Leitura
+X
+X
+Pai
+PIPE
+Filho
+Pipe 2
+
+X
+X
+Leitura
+Escrita
+Pai
+PIPE
+Filho
+Exemplo 3
+Vamos ver primeiramente o algoritmo para estabelecermos a comunicação nos dois sentidos.
+
+Algoritmotwowayspipe.ctwowayspipe.c (cont.)
+Cria o pipe1 para o procesos pai escrever e o filho ler.
+Cria o pipe2 para o processo filho escrever e o pai ler.
+Fecha as pontas não necessárias dos pipes em ambos os lados dos processos pai e filho.
+O processo pai escreve uma mensagem e o processo filho lê e a mostra na tela.
+O processo filho escreve uma mensagem e processo pai a lê e mostra na tela.
+Exercício com Pipes
+Escreva um programa que utilize um processo pai e um processo filho para inverter uma palavra e também para verificar se ela é palíndrome ou não.
+
+O processo pai vai receber a palavra do usuário e vai escrevê-la no pipe1. O processo filho vai ler esta palavra, invertê-la, e escrever o resultado no pipe2. O processo pai então lê o resultado e imprime na tela.
+
+O processo fiho vai então escrever no pipe3 o resultado da verificação se a palavra é palíndrome ou não.
+
+
+Exemplo 1 - simplepipe.c
+#include<stdio.h>
+#include<unistd.h>
+
+int main() {
+   int pipefds[2];
+   int returnstatus;
+   char writemessages[2][20]={"Hi", "Hello"};
+   char readmessage[20];
+   returnstatus = pipe(pipefds);
+   
+   if (returnstatus == -1) {
+      printf("Unable to create pipe\n");
+      return 1;
+   }
+   
+   printf("Writing to pipe - Message 1 is %s\n", writemessages[0]);
+   write(pipefds[1], writemessages[0], sizeof(writemessages[0]));
+   read(pipefds[0], readmessage, sizeof(readmessage));
+   printf("Reading from pipe – Message 1 is %s\n", readmessage);
+   printf("Writing to pipe - Message 2 is %s\n", writemessages[0]);
+   write(pipefds[1], writemessages[1], sizeof(writemessages[0]));
+   read(pipefds[0], readmessage, sizeof(readmessage));
+   printf("Reading from pipe – Message 2 is %s\n", readmessage);
+   return 0;
+}
+
+Idealmente devemos checar o resultado de cada chamada de sistema. Para simplificar, não estamos realizando esta checagem.
+
+
+Exemplo 2
+Neste exemplo vamos escrever e ler duas mensagens através do pipe usando os processos pai e filho.
+
+Algoritmo
+Cria o pipe.
+Cria o processo filho.
+Processo pai escreve no pipe.
+Processo filho recupera a mensagem do pipe e escreve na saída padrão.
+Repita os passos 3 e 4 mais uma vez.
+
+Codigo
+pipewithprocesses.c
+
+#include<stdio.h>
+#include<unistd.h>
+
+int main() {
+   int pipefds[2];
+   int returnstatus;
+   int pid;
+   char writemessages[2][20]={"Hi", "Hello"};
+   char readmessage[20];
+   returnstatus = pipe(pipefds);
+   if (returnstatus == -1) {
+      printf("Unable to create pipe\n");
+      return 1;
+   }
+   pid = fork();
+   // Child process
+   if (pid == 0) {
+      read(pipefds[0], readmessage, sizeof(readmessage));
+      printf("Child Process - Reading from pipe – Message 1 is %s\n", readmessage);
+      read(pipefds[0], readmessage, sizeof(readmessage));
+      printf("Child Process - Reading from pipe – Message 2 is %s\n", readmessage);
+   } else { //Parent process
+      printf("Parent Process - Writing to pipe - Message 1 is %s\n", writemessages[0]);
+      write(pipefds[1], writemessages[0], sizeof(writemessages[0]));
+      printf("Parent Process - Writing to pipe - Message 2 is %s\n", writemessages[1]);
+      write(pipefds[1], writemessages[1], sizeof(writemessages[1]));
+   }
+   return 0;
+}
+
+
+
+Comunicação nos dois sentidos
+Para estabelecermos uma comunicação nos dois sentidos entre o processo pai e o processo filho criamos dois pipes.
+
+As etapas para isso são:
+
+Cria dois pipes. O primeiro será utilizado para o processo pai escrever e o filho ler, vamos chamá-lo de pipe1. O segundo é para o processo filho escrever e o pai ler, vamos chamá-lo de pipe2.
+Cria o processo filho.
+Fecha nos as pontas desnecessárias, já que somente uma é necessária para comunicação.
+  Fecha no processo pai a ponta de leitura do pipe1 e a ponta de escrita do pipe2.
+  Fecha no processo filho a ponta de escrita do pipe1 e a ponta de leitura do pipe2.
+Realiza a comunicação, como pretendido.
+
+Exemplo 3
+Vamos ver primeiramente o algoritmo para estabelecermos a comunicação nos dois sentidos.
+
+Algoritmo
+Cria o pipe1 para o procesos pai escrever e o filho ler.
+Cria o pipe2 para o processo filho escrever e o pai ler.
+Fecha as pontas não necessárias dos pipes em ambos os lados dos processos pai e filho.
+O processo pai escreve uma mensagem e o processo filho lê e a mostra na tela.
+O processo filho escreve uma mensagem e processo pai a lê e mostra na tela.
+
+Codigo
+#include <stdio.h>
+#include <unistd.h>
+
+int main() {
+   int pipefds1[2], pipefds2[2];
+   int returnstatus1, returnstatus2;
+   int pid;
+   char pipe1writemessage[20] = "Hi";
+   char pipe2writemessage[20] = "Hello";
+   char readmessage[20];
+   returnstatus1 = pipe(pipefds1);
+   
+   if (returnstatus1 == -1) {
+      printf("Unable to create pipe 1 \n");
+      return 1;
+   }
+   returnstatus2 = pipe(pipefds2);
+   
+   if (returnstatus2 == -1) {
+      printf("Unable to create pipe 2 \n");
+      return 1;
+   }
+   pid = fork();
+      if (pid != 0) { // Parent process 
+      close(pipefds1[0]); // Close the unwanted pipe1 read side
+      close(pipefds2[1]); // Close the unwanted pipe2 write side
+      printf("In Parent: Writing to pipe 1 – Message is %s\n", pipe1writemessage);
+      write(pipefds1[1], pipe1writemessage, sizeof(pipe1writemessage));
+      read(pipefds2[0], readmessage, sizeof(readmessage));
+      printf("In Parent: Reading from pipe 2 – Message is %s\n", readmessage);
+   } else { //child process
+      close(pipefds1[1]); // Close the unwanted pipe1 write side
+      close(pipefds2[0]); // Close the unwanted pipe2 read side
+      read(pipefds1[0], readmessage, sizeof(readmessage));
+      printf("In Child: Reading from pipe 1 – Message is %s\n", readmessage);
+      printf("In Child: Writing to pipe 2 – Message is %s\n", pipe2writemessage);
+      write(pipefds2[1], pipe2writemessage, sizeof(pipe2writemessage));
+   }
+   return 0;
+}
+
+
+
+Exercício com Pipes
+Escreva um programa que utilize um processo pai e um processo filho para inverter uma palavra e também para verificar se ela é palíndrome ou não.
+O processo pai vai receber a palavra do usuário e vai escrevê-la no pipe1. O processo filho vai ler esta palavra, invertê-la, e escrever o resultado no pipe2. O processo pai então lê o resultado e imprime na tela.
+O processo fiho vai então escrever no pipe3 o resultado da verificação se a palavra é palíndrome ou não.
+
+

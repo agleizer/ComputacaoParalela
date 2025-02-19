@@ -114,7 +114,7 @@ int main()
         if (pid < 0)
         {
             printf("Erro ao criar processo filho");
-            exit(1);
+            return (-1);
         }
 
         if (pid == 0)
@@ -123,7 +123,7 @@ int main()
             srand(time(NULL) + getpid());
             int sleep_time = rand() % 10 + 1;
             sleep(sleep_time);
-            exit(sleep_time);
+            return (sleep_time);
         }
     }
 

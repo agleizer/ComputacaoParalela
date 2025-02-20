@@ -97,10 +97,10 @@ int mainOld()
 
 int main()
 {
-    printf("Informe a quantidade de filhos: ");
     int totalFilhos = 0;
     do
     {
+        printf("Informe a quantidade de filhos: ");
         totalFilhos = lerInt();
     } while (totalFilhos < 1);
 
@@ -119,7 +119,7 @@ int main()
 
         if (pid == 0)
         {
-            // Processo filho
+            // no processo filho
             srand(time(NULL) + getpid());
             int sleep_time = rand() % 10 + 1;
             sleep(sleep_time);
@@ -127,24 +127,27 @@ int main()
         }
     }
 
-    // Processo pai espera todos os filhos terminarem
+    // aqui estamos no processo pai, pois todos os filhos deram return acima
+    // precisamos de dois loops! no primeiro fazemos os fork. aqui, esperamos todos os filhos terminarem
     for (int i = 0; i < totalFilhos; i++)
     {
         int status;
-        pid_t child_pid = wait(&status);
+        pid_t pidFilho = wait(&status);
         /*
         wait() bloqueia execução do pai até que QUALQUER filho termine
         retorno de wait é o PID do filho que terminou.. por isso não precisamos armazenar o PID
-        o SO gerencia isso automaticamente
+        o SO gerencia isso automaGicamente
         */
+
+       // apos cada filho terminar, pidFilho tem o pid, e WEXITSTATUS nos da o valor de retorno
 
         if (WIFEXITED(status))
         {
-            printf("No processo pai: processo filho: %d, status de saída do filho: %d\n", child_pid, WEXITSTATUS(status));
+            printf("No processo pai: processo filho: %d, status de saída do filho: %d\n", pidFilho, WEXITSTATUS(status));
         }
         else
         {
-            printf("No processo pai: processo filho: %d terminou anormalmente.\n", child_pid);
+            printf("No processo pai: processo filho: %d terminou anormalmente.\n", pidFilho);
         }
     }
 

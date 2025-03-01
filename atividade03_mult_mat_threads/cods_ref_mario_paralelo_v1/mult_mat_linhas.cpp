@@ -1,105 +1,96 @@
-#include <iostream>   // Para std::cout e std::endl
+#include <iostream>   // Para std::cout, std::endl
 #include <vector>     // Para std::vector
-#include <chrono>     // Para medir o tempo (std::chrono)
-#include <thread>     // Para usar std::thread
-#include <cmath>      // Para operações matemáticas, se necessário (por ex.: std::ceil)
+#include <chrono>     // Para medir tempo (std::chrono)
+#include <thread>     // Para std::thread
 
 //------------------------------------------------------------------------------
-// Função auxiliar: multiplica a parte das linhas de uma matriz por um vetor.
-// Cada thread chamará esta função para processar um intervalo de linhas.
+// Função auxiliar que cada thread executa para multiplicar uma faixa de linhas
+// da matriz A por B, armazenando o resultado em C.
+// Faixa de linhas: [linhaInicio..linhaFim)
 //------------------------------------------------------------------------------
-void multiplicarPorLinhaParalelo(
-    const std::vector<std::vector<int>>& matriz, // (entrada) matriz NxN
-    const std::vector<int>& vetor,               // (entrada) vetor de tamanho N
-    std::vector<int>& resultado,                 // (saída) resultado parcial
-    int linhaInicio,                             // linha inicial a ser processada
-    int linhaFim                                 // linha final (exclusivo)
+void multiplicarMatrizesPorLinha(
+    const std::vector<std::vector<int>>& A,      // Matriz A (NxN)
+    const std::vector<std::vector<int>>& B,      // Matriz B (NxN)
+    std::vector<std::vector<int>>& C,            // Matriz C (NxN), resultado
+    int linhaInicio,                             // Linha inicial (inclusive)
+    int linhaFim                                 // Linha final (exclusive)
 ) {
-    // Percorre as linhas do intervalo [linhaInicio, linhaFim).
-    for (int i = linhaInicio; i < linhaFim; ++i) {
-        // Percorre todas as colunas (j) de 0 até N-1 (matriz[i].size() == N).
-        for (int j = 0; j < (int)matriz[i].size(); ++j) {
-            // Soma parcial no resultado para a linha 'i'.
-            // Faz: resultado[i] += matriz[i][j] * vetor[j].
-            resultado[i] += matriz[i][j] * vetor[j];
+    // Tamanho N da matriz (A, B, C)
+    int N = (int)A.size();  // supomos que A.size() == B.size() == C.size()
+
+    // Percorre as linhas na faixa dada
+    for (int i = linhaInicio; i < linhaFim; i++) {
+        // Percorre todas as colunas de C
+        for (int j = 0; j < N; j++) {
+            int soma = 0;
+            // Soma parcial em k
+            for (int k = 0; k < N; k++) {
+                soma += A[i][k] * B[k][j];
+            }
+            // Armazena em C[i][j]
+            C[i][j] = soma;
         }
     }
 }
 
 int main() {
-    const int N = 1000;  // Dimensão da matriz NxN e tamanho do vetor
+    // Definimos N, o tamanho das matrizes NxN
+    const int N = 1000;
 
-    // Cria a matriz NxN com valores 1 em cada posição
-    std::vector<std::vector<int>> matriz(N, std::vector<int>(N, 1));
+    // Criar matrizes A, B (NxN) preenchidas com 1
+    std::vector<std::vector<int>> A(N, std::vector<int>(N, 1));
+    std::vector<std::vector<int>> B(N, std::vector<int>(N, 1));
 
-    // Cria o vetor de tamanho N também com 1 em cada posição
-    std::vector<int> vetor(N, 1);
+    // Cria a matriz C (resultado), inicializada com 0
+    std::vector<std::vector<int>> C(N, std::vector<int>(N, 0));
 
-    // Cria o vetor de resultado, inicialmente zerado
-    std::vector<int> resultado(N, 0);
-
-    // Define o número de threads que queremos usar
+    // Definimos o número de threads
     int numThreads = 4;
 
-    // Marca o início da medição de tempo (clock)
+    // Marca o tempo inicial
     auto inicio = std::chrono::high_resolution_clock::now();
 
-    // Cria um vetor de threads, para armazenar as 'numThreads' threads
+    // Vetor para armazenar as threads
     std::vector<std::thread> threads;
-    // Reservamos espaço no vetor (opcional, mas evita realocações)
     threads.reserve(numThreads);
 
-    // Calculamos quantas linhas cada thread deve processar
-    int linhasPorThread = N / numThreads; // divisão inteira
-    int resto = N % numThreads;          // se N não for divisível exatamente, sobra 'resto'
+    // Quantas linhas cada thread irá processar
+    int linhasPorThread = N / numThreads;
+    int resto = N % numThreads;
 
-    // Variável auxiliar para sabermos onde cada thread começa e termina
     int linhaAtual = 0;
 
-    // Criamos as threads
+    // Criamos as threads, cada uma processando um intervalo [linhaInicio..linhaFim)
     for (int t = 0; t < numThreads; t++) {
-        // Se ainda houver 'resto', damos +1 linha a esta thread
         int bloco = linhasPorThread + (t < resto ? 1 : 0);
-
-        // O intervalo de linhas para esta thread é [linhaInicio, linhaFim)
         int linhaInicio = linhaAtual;
         int linhaFim = linhaInicio + bloco;
-
-        // Atualizamos linhaAtual para a próxima thread
         linhaAtual = linhaFim;
 
-        // Emplace_back cria a thread diretamente no vetor 'threads'
-        // Passamos como parâmetros:
-        // - A função multiplicarPorLinhaParalelo
-        // - A matriz e vetor (passados por referência constante, std::cref)
-        // - O resultado (passado por referência "normal", std::ref, pois vamos escrever nele)
-        // - E o intervalo [linhaInicio..linhaFim) que a thread irá processar
+        // Lança a thread
         threads.emplace_back(
-            multiplicarPorLinhaParalelo,
-            std::cref(matriz),
-            std::cref(vetor),
-            std::ref(resultado),
+            multiplicarMatrizesPorLinha,
+            std::cref(A),
+            std::cref(B),
+            std::ref(C),
             linhaInicio,
             linhaFim
         );
     }
 
-    // Agora precisamos "esperar" todas as threads finalizarem antes de continuar
+    // Aguarda todas as threads terminarem
     for (auto& th : threads) {
-        th.join(); // join bloqueia até a thread 'th' terminar
+        th.join();
     }
 
-    // Marca o fim da medição de tempo
+    // Marca o tempo final
     auto fim = std::chrono::high_resolution_clock::now();
-
-    // Calcula a duração em microsegundos (usando std::chrono::duration_cast)
+    // Calcula a duração em microsegundos
     auto duracao = std::chrono::duration_cast<std::chrono::microseconds>(fim - inicio);
 
-    // Imprime o tempo de execução
-    std::cout << "Tempo de execucao (nao otimizado, paralelo por linha): "
+    // Exibe o tempo de execução
+    std::cout << "Tempo de execucao (mat-mat por linha, paralelo): "
               << duracao.count() << " microsegundos" << std::endl;
 
-    // Fim do programa
     return 0;
 }
-

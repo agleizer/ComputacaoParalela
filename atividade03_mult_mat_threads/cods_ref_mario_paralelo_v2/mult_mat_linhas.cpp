@@ -1,105 +1,107 @@
-#include <iostream>   // Para std::cout e std::endl
-#include <vector>     // Para std::vector
-#include <chrono>     // Para medir o tempo (std::chrono)
-#include <thread>     // Para usar std::thread
-#include <cmath>      // Para operações matemáticas, se necessário (por ex.: std::ceil)
+/*
+Universidade Presbiteriana Mackenzie
+Ciência da Computação – 05P
+Computação Paralela
+01/03/2025
+Alan Meniuk Gleizer
+RA 10416804
+*/
 
-//------------------------------------------------------------------------------
-// Função auxiliar: multiplica a parte das linhas de uma matriz por um vetor.
-// Cada thread chamará esta função para processar um intervalo de linhas.
-//------------------------------------------------------------------------------
-void multiplicarPorLinhaParalelo(
-    const std::vector<std::vector<int>>& matriz, // (entrada) matriz NxN
-    const std::vector<int>& vetor,               // (entrada) vetor de tamanho N
-    std::vector<int>& resultado,                 // (saída) resultado parcial
-    int linhaInicio,                             // linha inicial a ser processada
-    int linhaFim                                 // linha final (exclusivo)
-) {
-    // Percorre as linhas do intervalo [linhaInicio, linhaFim).
-    for (int i = linhaInicio; i < linhaFim; ++i) {
-        // Percorre todas as colunas (j) de 0 até N-1 (matriz[i].size() == N).
-        for (int j = 0; j < (int)matriz[i].size(); ++j) {
-            // Soma parcial no resultado para a linha 'i'.
-            // Faz: resultado[i] += matriz[i][j] * vetor[j].
-            resultado[i] += matriz[i][j] * vetor[j];
+/*
+Atividade 03 - Mult. Matrizes com Threads
+Codigo 1 - Ordem de Linha
+*/
+
+#include <iostream>
+#include <vector>
+#include <chrono>
+#include <thread>
+
+// OBS: código realiza multiplicação de matrizes QUADRADAS de mesmo tamanho para simplificar
+// OBS: tam. da matriz precisa ser divisivel pelo numero de threads! caso contrario, descomentar "resto"
+
+// função de multiplicação de um INTERVALO de linhas
+// será chamada por cada thread
+// parametros: matriz A, matriz B, matriz C (resultado), linhas inicial e final [inicial, final[
+void multiplicarMatrizesPorLinha(const std::vector<std::vector<int>>& A,const std::vector<std::vector<int>>& B,std::vector<std::vector<int>>& C,int linhaInicio,int linhaFim) {
+    int N = (int)A.size();  // para que N não seja parametro.. sizeA = B = C !!
+
+    // percorre as linhas no INTERVALO
+    for (int i = linhaInicio; i < linhaFim; i++) {
+        // percorre TODAS as colunas
+        for (int j = 0; j < N; j++) {
+            int soma = 0;
+            // soma parcial em k
+            for (int k = 0; k < N; k++) {
+                soma += A[i][k] * B[k][j];
+            }
+            // armazena em C[i][j]
+            C[i][j] = soma;
         }
     }
 }
 
 int main() {
-    const int N = 1000;  // Dimensão da matriz NxN e tamanho do vetor
+    // def tamanho das matrizes. mantive 1000 como no exemplo
+    const int N = 1000;
 
-    // Cria a matriz NxN com valores 1 em cada posição
-    std::vector<std::vector<int>> matriz(N, std::vector<int>(N, 1));
+    // criação das matrizes A, B para multiplicação
+    // matrizes tem todos os valores = 5. resultado deveria ser uma matriz com todos elementos = 25000
+    std::vector<std::vector<int>> A(N, std::vector<int>(N, 5));
+    std::vector<std::vector<int>> B(N, std::vector<int>(N, 5));
 
-    // Cria o vetor de tamanho N também com 1 em cada posição
-    std::vector<int> vetor(N, 1);
+    // criação da matriz C (resultado), inicializada com 0
+    std::vector<std::vector<int>> C(N, std::vector<int>(N, 0));
 
-    // Cria o vetor de resultado, inicialmente zerado
-    std::vector<int> resultado(N, 0);
-
-    // Define o número de threads que queremos usar
+    // def. numero de threads
     int numThreads = 4;
 
-    // Marca o início da medição de tempo (clock)
+    // inicio do cronometro.. mesmo codigo do exem0plo
     auto inicio = std::chrono::high_resolution_clock::now();
 
-    // Cria um vetor de threads, para armazenar as 'numThreads' threads
+    // Vetor para armazenar as threads
     std::vector<std::thread> threads;
-    // Reservamos espaço no vetor (opcional, mas evita realocações)
-    threads.reserve(numThreads);
 
-    // Calculamos quantas linhas cada thread deve processar
-    int linhasPorThread = N / numThreads; // divisão inteira
-    int resto = N % numThreads;          // se N não for divisível exatamente, sobra 'resto'
+    // não é necessário, mas estava no exemplo do Geeks for Geeks
+    //threads.reserve(numThreads);
 
-    // Variável auxiliar para sabermos onde cada thread começa e termina
+    // calculo de quantas linhas cada thread irá processar
+    int linhasPorThread = N / numThreads;
+    
+    // também estava no exemplo do Geeks for Geeks mas não será necessário pois temos 1000 linhas e 4 threads...
+    // seria necessário se mod != 0
+    //int resto = N % numThreads;
+
     int linhaAtual = 0;
 
-    // Criamos as threads
+    // criar as threads, cada uma processando um intervalo [linhaInicio,linhaFim[
     for (int t = 0; t < numThreads; t++) {
-        // Se ainda houver 'resto', damos +1 linha a esta thread
-        int bloco = linhasPorThread + (t < resto ? 1 : 0);
 
-        // O intervalo de linhas para esta thread é [linhaInicio, linhaFim)
+        // calculo dos parametros que serão passados para cada thread
+        int bloco = linhasPorThread /*+ (t < resto ? 1 : 0)*/; // soma do resto não é necessária! ver comentario acima
         int linhaInicio = linhaAtual;
         int linhaFim = linhaInicio + bloco;
-
-        // Atualizamos linhaAtual para a próxima thread
         linhaAtual = linhaFim;
 
-        // Emplace_back cria a thread diretamente no vetor 'threads'
-        // Passamos como parâmetros:
-        // - A função multiplicarPorLinhaParalelo
-        // - A matriz e vetor (passados por referência constante, std::cref)
-        // - O resultado (passado por referência "normal", std::ref, pois vamos escrever nele)
-        // - E o intervalo [linhaInicio..linhaFim) que a thread irá processar
-        threads.emplace_back(
-            multiplicarPorLinhaParalelo,
-            std::cref(matriz),
-            std::cref(vetor),
-            std::ref(resultado),
-            linhaInicio,
-            linhaFim
-        );
+        // executar a thread
+        // obs geeks for geeks sugere usar emplace_back() ao invez de push, mas vamos seguir com sugestão do prof.
+        // obs cref passa o paramewntro por REFERENCIA (c = const, não pode alterar)
+        threads.push_back(std::thread(multiplicarMatrizesPorLinha,std::cref(A),std::cref(B),std::ref(C),linhaInicio,linhaFim));
     }
 
-    // Agora precisamos "esperar" todas as threads finalizarem antes de continuar
+    // Aguarda as threads terminarem
     for (auto& th : threads) {
-        th.join(); // join bloqueia até a thread 'th' terminar
+        th.join();
     }
 
-    // Marca o fim da medição de tempo
+    // parar o cronometro
     auto fim = std::chrono::high_resolution_clock::now();
-
-    // Calcula a duração em microsegundos (usando std::chrono::duration_cast)
+    // calcular a duracao em microsegundos
     auto duracao = std::chrono::duration_cast<std::chrono::microseconds>(fim - inicio);
 
-    // Imprime o tempo de execução
-    std::cout << "Tempo de execucao (nao otimizado, paralelo por linha): "
-              << duracao.count() << " microsegundos" << std::endl;
+    // exibir o tempo de execução
+    std::cout << "C[0][0] = " << C[0][0] << std::endl;
+    std::cout << "Tempo de execucao (mult. mat. por linha, paralelo): " << duracao.count() << " microsegundos" << std::endl;
 
-    // Fim do programa
     return 0;
 }
-

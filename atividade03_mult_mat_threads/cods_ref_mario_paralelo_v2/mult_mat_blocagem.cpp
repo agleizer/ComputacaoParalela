@@ -1,109 +1,100 @@
-#include <iostream>   // std::cout, std::endl
-#include <vector>     // std::vector
-#include <chrono>     // std::chrono
-#include <thread>     // std::thread
-#include <algorithm>  // std::min (para limitar o fim do bloco)
+/*
+Universidade Presbiteriana Mackenzie
+Ciência da Computação – 05P
+Computação Paralela
+01/03/2025
+Alan Meniuk Gleizer
+RA 10416804
+*/
 
-//------------------------------------------------------------------------------
-// Função auxiliar que processa um intervalo de blocos de colunas [blocoInicio..blocoFim).
-// Cada bloco define um intervalo de colunas [jInicio..jFim) de tamanho "BLOCK_SIZE".
-//------------------------------------------------------------------------------
-void multiplicarBlocagemParalelo(
-    const std::vector<std::vector<int>>& matriz, // NxN
-    const std::vector<int>& vetor,               // N
-    std::vector<int>& resultado,                 // N
-    int N,                                       // Dimensão da matriz
-    int BLOCK_SIZE,                              // Tamanho do bloco
-    int blocoInicio,                             // índice do bloco inicial
-    int blocoFim                                 // índice do bloco final (exclusivo)
-) {
-    // Percorremos os blocos na faixa [blocoInicio..blocoFim).
-    // Cada 'bloco b' corresponde às colunas [b * BLOCK_SIZE .. (b+1)*BLOCK_SIZE).
-    for (int b = blocoInicio; b < blocoFim; ++b) {
-        // Calcula o jInicio e jFim reais em termos de colunas
-        int jInicio = b * BLOCK_SIZE;
-        // std::min para não passar de N caso o último bloco seja parcial
-        int jFim = std::min(jInicio + BLOCK_SIZE, N);
+/*
+Atividade 03 - Mult. Matrizes com Threads
+Codigo 3 - Uso de Blocagem
+*/
 
-        // Agora percorremos cada linha i
-        for (int i = 0; i < N; ++i) {
-            // E dentro daquele bloco de colunas (k)
-            for (int k = jInicio; k < jFim; ++k) {
-                // resultado[i] += matriz[i][k] * vetor[k]
-                resultado[i] += matriz[i][k] * vetor[k];
+#include <iostream>
+#include <vector>
+#include <chrono>
+#include <thread>
+
+// OBS: código realiza multiplicação de matrizes QUADRADAS de mesmo tamanho para simplificar
+// OBS: tam. da matriz precisa ser divisivel pelo numero de threads! caso contrario, descomentar "resto"
+
+// função de multiplicação de um INTERVALO de linhas
+// será chamada por cada thread
+// parametros: matriz A, matriz B, matriz C (resultado), linhas inicial e final [inicial, final[
+// OBS: usamos linhas mas fazendo blocagem na dimensão das COLUNAS dentro do intervalo de linhas.
+void multiplicarMatrizesPorBlocagem(const std::vector<std::vector<int>>& A,const std::vector<std::vector<int>>& B,std::vector<std::vector<int>>& C,int linhaInicio,int linhaFim){
+    int N = (int)A.size();
+    const int BLOCK_SIZE = 16;    // Tamanho do bloco de colunas
+
+    // percorrer as colunas em blocos de tamanho BLOCK_SIZE
+    for (int jBlock = 0; jBlock < N; jBlock += BLOCK_SIZE) {
+        int jFim = std::min(jBlock + BLOCK_SIZE, N);
+
+        // Para cada linha no INTERVALO [linhaInicio..linhaFim[
+        for (int i = linhaInicio; i < linhaFim; i++) {
+            // Para cada coluna no bloco [jBlock..jFim)
+            for (int j = jBlock; j < jFim; j++) {
+                int soma = 0;
+                // Soma parcial em k, percorrendo todas as colunas de A (ou linhas de B)
+                for (int k = 0; k < N; k++) {
+                    soma += A[i][k] * B[k][j];
+                }
+                C[i][j] = soma;
             }
         }
     }
 }
 
 int main() {
-    const int N = 1000;        // Tamanho NxN
-    const int BLOCK_SIZE = 16; // Tamanho do bloco de colunas
+    // def tamanho NxN (o mesmo do código anterior)
+    const int N = 1000;
 
-    // Matriz NxN com 1s
-    std::vector<std::vector<int>> matriz(N, std::vector<int>(N, 1));
+    // criação de matrizes A e B, ambas NxN com valor 5
+    std::vector<std::vector<int>> A(N, std::vector<int>(N, 5));
+    std::vector<std::vector<int>> B(N, std::vector<int>(N, 5));
 
-    // Vetor N com 1s
-    std::vector<int> vetor(N, 1);
+    // criação de C (resultado), NxN inicializada com 0
+    std::vector<std::vector<int>> C(N, std::vector<int>(N, 0));
 
-    // Resultado N com 0s
-    std::vector<int> resultado(N, 0);
-
-    // Definimos quantas threads vamos criar
+    // def numero de threads
     int numThreads = 4;
 
-    // Quantos blocos de colunas existem no total?
-    // Ex.: se N=1000 e BLOCK_SIZE=16 => 1000/16 = 62.5 => 63 blocos
-    int numBlocos = (N + BLOCK_SIZE - 1) / BLOCK_SIZE; // arredondar pra cima
-
-    // Marca início da medição
+    // inicio do cronômetro
     auto inicio = std::chrono::high_resolution_clock::now();
 
     // Vetor para armazenar as threads
     std::vector<std::thread> threads;
-    threads.reserve(numThreads);
 
-    // Dividir 'numBlocos' entre 'numThreads'
-    int blocosPorThread = numBlocos / numThreads;
-    int resto = numBlocos % numThreads;
+    // cálculo de quantas linhas cada thread processa
+    int linhasPorThread = N / numThreads;
+    int linhaAtual = 0;
 
-    int blocoAtual = 0;
-
-    // Criar as threads
+    // criar as threads, cada uma processando um intervalo [linhaInicio..linhaFim)
     for (int t = 0; t < numThreads; t++) {
-        // Se tiver resto, dá 1 bloco extra
-        int qtd = blocosPorThread + (t < resto ? 1 : 0);
+        int bloco = linhasPorThread;
+        int linhaInicio = linhaAtual;
+        int linhaFim = linhaInicio + bloco;
+        linhaAtual = linhaFim;
 
-        int blocoInicio = blocoAtual;
-        int blocoFim = blocoInicio + qtd;
-        blocoAtual = blocoFim;
-
-        // Cria a thread
-        threads.emplace_back(
-            multiplicarBlocagemParalelo,
-            std::cref(matriz),
-            std::cref(vetor),
-            std::ref(resultado),
-            N,
-            BLOCK_SIZE,
-            blocoInicio,
-            blocoFim
-        );
+        threads.push_back(std::thread(multiplicarMatrizesPorBlocagem,std::cref(A),std::cref(B),std::ref(C),linhaInicio,linhaFim));
     }
 
-    // Espera todas as threads
+    // aguardar as threads
     for (auto& th : threads) {
         th.join();
     }
 
-    // Marca o fim
+    // parar cronômetro
     auto fim = std::chrono::high_resolution_clock::now();
-    // Calcula duração
+    // calcular em microsegundos
     auto duracao = std::chrono::duration_cast<std::chrono::microseconds>(fim - inicio);
 
+    // Imprime um elemento e o tempo de execução
+    std::cout << "C[0][0] = " << C[0][0] << std::endl;
     std::cout << "Tempo de execucao (blocagem, paralelo): "
               << duracao.count() << " microsegundos" << std::endl;
 
     return 0;
 }
-

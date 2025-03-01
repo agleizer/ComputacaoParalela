@@ -49,7 +49,7 @@ void multiplicarMatrizesPorBlocagem(const std::vector<std::vector<int>>& A,const
 
 int main() {
     // def tamanho NxN (o mesmo do código anterior)
-    const int N = 1000;
+    const int N = 500;
 
     // criação de matrizes A e B, ambas NxN com valor 5
     std::vector<std::vector<int>> A(N, std::vector<int>(N, 5));
@@ -59,7 +59,7 @@ int main() {
     std::vector<std::vector<int>> C(N, std::vector<int>(N, 0));
 
     // def numero de threads
-    int numThreads = 4;
+    int numThreads = 10;
 
     // inicio do cronômetro
     auto inicio = std::chrono::high_resolution_clock::now();
@@ -92,9 +92,9 @@ int main() {
     auto duracao = std::chrono::duration_cast<std::chrono::microseconds>(fim - inicio);
 
     // Imprime um elemento e o tempo de execução
-    std::cout << "C[0][0] = " << C[0][0] << std::endl;
+    std::cout << "\nC[0][0] = " << C[0][0] << std::endl;
     std::cout << "Tempo de execucao (blocagem, paralelo): "
-              << duracao.count() << " microsegundos" << std::endl;
+              << duracao.count() << " microsegundos\n" << std::endl;
 
     return 0;
 }

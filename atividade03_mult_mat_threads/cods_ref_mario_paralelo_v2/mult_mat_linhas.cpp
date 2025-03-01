@@ -43,7 +43,7 @@ void multiplicarMatrizesPorLinha(const std::vector<std::vector<int>>& A,const st
 
 int main() {
     // def tamanho das matrizes. mantive 1000 como no exemplo
-    const int N = 1000;
+    const int N = 500;
 
     // criação das matrizes A, B para multiplicação
     // matrizes tem todos os valores = 5. resultado deveria ser uma matriz com todos elementos = 25000
@@ -54,7 +54,7 @@ int main() {
     std::vector<std::vector<int>> C(N, std::vector<int>(N, 0));
 
     // def. numero de threads
-    int numThreads = 4;
+    int numThreads = 10;
 
     // inicio do cronometro.. mesmo codigo do exem0plo
     auto inicio = std::chrono::high_resolution_clock::now();
@@ -100,8 +100,8 @@ int main() {
     auto duracao = std::chrono::duration_cast<std::chrono::microseconds>(fim - inicio);
 
     // exibir o tempo de execução
-    std::cout << "C[0][0] = " << C[0][0] << std::endl;
-    std::cout << "Tempo de execucao (mult. mat. por linha, paralelo): " << duracao.count() << " microsegundos" << std::endl;
+    std::cout << "\nC[0][0] = " << C[0][0] << std::endl;
+    std::cout << "Tempo de execucao (mult. mat. por linha, paralelo): " << duracao.count() << " microsegundos\n" << std::endl;
 
     return 0;
 }

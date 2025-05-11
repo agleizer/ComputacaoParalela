@@ -6,7 +6,7 @@
 
 /*
 nvc -acc -Minfo=accel -O2 -Wall 02_openACC_v2.c -o 02_openACC_v2
-./02_openACC_v2 100 8
+./02_openACC_v2 1000 4
 */
 
 // funcao de comparacao para qsort (ordem crescente)
@@ -58,8 +58,9 @@ void sample_sort_acc(int *dados, int tamanho, int num_blocos) {
                 int balde = encontrar_balde(valor, splitters, num_blocos);
 
                 // incremento e escrita atomica
+                int pos;
                 #pragma acc atomic capture
-                int pos = contadores_baldes[balde]++;
+                pos = contadores_baldes[balde]++;
 
                 baldes_planos[balde * tamanho + pos] = valor;
             }
@@ -101,6 +102,7 @@ int main(int argc, char **argv) {
     for (int i = 0; i < tamanho; ++i)
         dados[i] = rand() % 1000 + 1;
 
+    /*
     // ordenacao serial com qsort
     int *dados_copia = malloc(tamanho * sizeof(int));
     memcpy(dados_copia, dados, tamanho * sizeof(int));
@@ -109,12 +111,13 @@ int main(int argc, char **argv) {
     double t1 = omp_get_wtime();
     printf("Tempo Serial:  %.6f s\n", t1 - t0);
     free(dados_copia);
+    */
 
     // ordenacao com OpenACC
     double t2 = omp_get_wtime();
     sample_sort_acc(dados, tamanho, num_blocos);
     double t3 = omp_get_wtime();
-    printf("Tempo OpenACC: %.6f s\n", t3 - t2);
+    printf("OpenACC: n =%d -> %.6f s\n", tamanho, t3 - t2);
 
     free(dados);
     return 0;

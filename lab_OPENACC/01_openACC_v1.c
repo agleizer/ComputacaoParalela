@@ -11,7 +11,7 @@ TODO: implementar versao com "blocos" (ver merge_slip low e high no enunciado)
 
 /*
 nvc -acc -Minfo=accel -O3 -Wall 01_openACC_v1.c -o 01_openACC_v1
-./ 01_openACC_v1 1000
+./01_openACC_v1 500
 */
 
 // func para trocar dois inteiros
@@ -35,16 +35,18 @@ void odd_even_sort_acc(int *data, int n, int p) {
         for (int fase = 0; fase < n; ++fase) {
             if (fase % 2 == 0) {
                 // fase par
+                int i;
                 #pragma acc parallel loop
-                for (int i = 0; i + 1 < n; i += 2) {
+                for (i = 0; i + 1 < n; i += 2) {
                     if (data[i] > data[i+1]) {
                         swap_int(&data[i], &data[i+1]);
                     }
                 }
             } else {
                 // fase impar
+                int i;
                 #pragma acc parallel loop
-                for (int i = 1; i + 1 < n; i += 2) {
+                for (i = 1; i + 1 < n; i += 2) {
                     if (data[i] > data[i+1]) {
                         swap_int(&data[i], &data[i+1]);
                     }

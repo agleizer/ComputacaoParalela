@@ -106,6 +106,7 @@ int main(int argc, char **argv) {
     for (int i = 0; i < tamanho; ++i) dados[i] = rand() % 1000 + 1;
 
     // medida de tempo para qsort serial
+    /*
     int *dados_copia = malloc(tamanho * sizeof(int));
     memcpy(dados_copia, dados, tamanho * sizeof(int));
 
@@ -114,12 +115,13 @@ int main(int argc, char **argv) {
     double t1 = omp_get_wtime();
     printf("Tempo Serial:   %.6f s\n", t1 - t0);
     free(dados_copia);
+    */
 
     // medida de tempo para sample sort com OpenMP
     double t2 = omp_get_wtime();
     sample_sort_omp(dados, tamanho, num_threads);
     double t3 = omp_get_wtime();
-    printf("Tempo OpenMP:   %.6f s\n", t3 - t2);
+    printf("OpenMP: n = %d, threads = %d -> %.6f s\n", tamanho, num_threads, t3 - t2);
 
     free(dados);
     return 0;
